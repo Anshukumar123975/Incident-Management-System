@@ -6,8 +6,12 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Copy ALL source files including src/, index.html, configs
-COPY . .
+# Copy everything explicitly
+COPY index.html ./
+COPY vite.config.js ./
+COPY tailwind.config.js ./
+COPY postcss.config.js ./
+COPY src/ ./src/
 
 RUN npm run build
 

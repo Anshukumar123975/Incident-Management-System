@@ -3,26 +3,30 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+
 from app.config import get_settings
 from app.db.postgres import check_postgres
 from app.db.mongo import check_mongo, close_mongo
 from app.db.redis import check_redis, close_redis
+from app.middleware.logging_config import configure_structlog, CorrelationIDMiddleware
+from app.core.processor import start_workers, stop_workers
 
 settings = get_settings()
+
+# Worker task handles — kept for graceful shutdown
+_worker_tasks = []
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Runs on startup and shutdown.
-    Startup: verify all DB connections are live.
-    Shutdown: cleanly close connection pools.
-    """
+    # ── Startup ──────────────────────────────────────────────
+    configure_structlog()
     print("Starting IMS backend...")
     print(f"Environment: {settings.APP_ENV}")
 
-    # Verify DB connectivity on startup
-    pg_ok = await check_postgres()
+    pg_ok    = await check_postgres()
     mongo_ok = await check_mongo()
     redis_ok = await check_redis()
 
@@ -33,13 +37,18 @@ async def lifespan(app: FastAPI):
     if not all([pg_ok, mongo_ok, redis_ok]):
         print("WARNING: One or more DB connections failed on startup.")
 
+    # Start worker pool + metrics logger
+    global _worker_tasks
+    _worker_tasks = await start_workers()
+
     yield  # App runs here
 
-    # Shutdown: close connections
+    # ── Shutdown ─────────────────────────────────────────────
     print("Shutting down IMS backend...")
+    await stop_workers(_worker_tasks)
     await close_mongo()
     await close_redis()
-    print("Connections closed.")
+    print("Shutdown complete.")
 
 
 # ── App factory ───────────────────────────────────────────────────────────
@@ -50,24 +59,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── Middleware ────────────────────────────────────────────────────────────
-
-# GZip compression for responses > 1KB
+# ── Middleware (order matters — outermost first) ──────────────────────────
 app.add_middleware(GZipMiddleware, minimum_size=1024)
-
-# CORS — strict origin whitelist
-app.add_middleware(
-    CORSMiddleware,
+app.add_middleware(CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["*"],
 )
-
-
-# Security headers middleware
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
+app.add_middleware(CorrelationIDMiddleware)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -81,32 +81,32 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
+# ── Routers ───────────────────────────────────────────────────────────────
+from app.api.ingest    import router as ingest_router
+from app.api.incidents import router as incidents_router
+from app.api.rca       import router as rca_router
+from app.api.ws        import router as ws_router
+from app.api.metrics   import router as metrics_router
+from app.api.analytics import router as analytics_router
 
-# ── Routes ────────────────────────────────────────────────────────────────
+app.include_router(ingest_router,    tags=["Ingestion"])
+app.include_router(incidents_router, tags=["Incidents"])
+app.include_router(rca_router,       tags=["RCA"])
+app.include_router(ws_router,        tags=["WebSocket"])
+app.include_router(metrics_router,   tags=["Observability"])
+app.include_router(analytics_router, tags=["Analytics"])
+
 
 @app.get("/health", tags=["Observability"])
 async def health_check():
-    """
-    Checks actual connectivity to all three databases.
-    Returns 200 if healthy, 503 if any DB is down.
-    Used by Docker health checks and monitoring systems.
-    """
-    pg_ok = await check_postgres()
+    pg_ok    = await check_postgres()
     mongo_ok = await check_mongo()
     redis_ok = await check_redis()
-
-    all_healthy = all([pg_ok, mongo_ok, redis_ok])
-
-    payload = {
-        "status": "ok" if all_healthy else "degraded",
-        "postgres": pg_ok,
-        "mongo": mongo_ok,
-        "redis": redis_ok,
-    }
-
+    all_ok   = all([pg_ok, mongo_ok, redis_ok])
     return JSONResponse(
-        content=payload,
-        status_code=200 if all_healthy else 503,
+        content={"status": "ok" if all_ok else "degraded",
+                 "postgres": pg_ok, "mongo": mongo_ok, "redis": redis_ok},
+        status_code=200 if all_ok else 503,
     )
 
 
