@@ -1,0 +1,47 @@
+{
+  "description": "Sample signal payloads for IMS testing",
+  "signals": [
+    {
+      "component_id": "RDBMS_PRIMARY",
+      "component_type": "RDBMS",
+      "error_code": "CONNECTION_POOL_EXHAUSTED",
+      "message": "All 100 connections in pool are in use",
+      "payload": {"pool_size": 100, "active": 100, "idle": 0}
+    },
+    {
+      "component_id": "CACHE_CLUSTER_01",
+      "component_type": "CACHE",
+      "error_code": "OOM_ERROR",
+      "message": "Cache cluster out of memory",
+      "payload": {"used_memory_mb": 4096, "max_memory_mb": 4096}
+    },
+    {
+      "component_id": "MCP_HOST_01",
+      "component_type": "MCP_HOST",
+      "error_code": "HEALTH_CHECK_FAILED",
+      "message": "MCP host health check returned 503",
+      "payload": {"http_status": 503, "response_time_ms": 5000}
+    },
+    {
+      "component_id": "ASYNC_QUEUE_01",
+      "component_type": "ASYNC_QUEUE",
+      "error_code": "QUEUE_DEPTH_EXCEEDED",
+      "message": "Queue depth exceeded 10000 messages",
+      "payload": {"queue_depth": 12500, "threshold": 10000}
+    },
+    {
+      "component_id": "USER_API",
+      "component_type": "API",
+      "error_code": "HIGH_ERROR_RATE",
+      "message": "Error rate exceeded 5% threshold",
+      "payload": {"error_rate_pct": 8.3, "threshold_pct": 5.0}
+    },
+    {
+      "component_id": "NOSQL_CLUSTER",
+      "component_type": "NOSQL",
+      "error_code": "WRITE_CONCERN_TIMEOUT",
+      "message": "Write concern timeout after 5000ms",
+      "payload": {"timeout_ms": 5000, "replicas_acknowledged": 0}
+    }
+  ]
+}
