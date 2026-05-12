@@ -1,4 +1,4 @@
-# IMS — Incident Management System
+# IMS - Incident Management System
 
 A production-grade, mission-critical Incident Management System built to monitor distributed infrastructure (APIs, MCP Hosts, Caches, Queues, RDBMS, NoSQL) and manage the full incident lifecycle from signal ingestion to closed postmortem.
 
