@@ -151,6 +151,9 @@ async def update_incident_status(work_item_id: UUID, body: WorkItemStatusUpdate)
                 )
                 session.add(event)
 
+        # Reload the work item to get updated fields like updated_at
+        wi = await session.get(WorkItem, work_item_id)
+
         # Invalidate Redis cache
         redis = get_redis()
         await redis.delete("incidents:all")

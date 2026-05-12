@@ -45,7 +45,15 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [o.strip() for o in self.CORS_ORIGINS.split(",")]
+        origins = [o.strip() for o in self.CORS_ORIGINS.split(",")]
+        extras = [
+            "http://localhost",
+            "http://localhost:80",
+            "http://localhost:8000",
+            "http://127.0.0.1",
+            "http://127.0.0.1:80",
+        ]
+        return list(set(origins + extras))
 
     class Config:
         env_file = ".env"

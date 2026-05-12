@@ -5,7 +5,6 @@ from app.middleware.rate_limiter import management_rate_limit
 
 router = APIRouter()
 
-
 @router.get(
     "/analytics/mttr",
     dependencies=[Depends(management_rate_limit)],
